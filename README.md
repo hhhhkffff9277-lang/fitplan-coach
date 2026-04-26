@@ -1,6 +1,6 @@
 # FitPlan Coach PWA
 
-这是一个纯 HTML/CSS/JavaScript 的训练计划平板演示应用。项目没有后端、没有框架、没有构建步骤，训练记录继续保存在浏览器 `localStorage` 的 `fitplan-records` 中。
+这是一个纯 HTML/CSS/JavaScript 的训练计划平板演示应用。项目没有后端、没有框架、没有构建步骤。用户资料和训练记录都会保存在本机浏览器中。
 
 ## 本地运行
 
@@ -74,16 +74,22 @@ PWA 会缓存：
 - `assets/icons/` 图标
 - `assets/exercises/` 下的动作图片素材
 
-训练记录仍保存在 `localStorage`，清理浏览器站点数据会删除训练记录。
+用户资料和训练记录会优先保存在 IndexedDB，并同步保留 `localStorage` 兼容备份。清理浏览器站点数据会删除这些本机数据。
 
 ## 数据保存与备份
 
 当前版本使用双层本地数据策略：
 
-- IndexedDB：作为主要数据层，保存训练记录、用户设置和训练计划自定义数据。
-- `localStorage`：继续保留 `fitplan-records`，作为旧版本兼容备份。
+- IndexedDB：作为主要数据层，保存训练记录、用户建档资料和训练计划自定义数据。
+- `localStorage`：继续保留 `fitplan-records` 训练记录，并新增 `fitplan-profile` 用户档案，作为兼容备份。
 
-首次启动时，如果浏览器里已有旧版 `localStorage.fitplan-records`，应用会自动迁移到 IndexedDB。迁移完成后不会删除原来的 `localStorage` 数据。
+启动时的数据读取优先级：
+
+1. 优先读取 IndexedDB 中的用户档案。
+2. 如果 IndexedDB 没有用户档案，再读取 `localStorage.fitplan-profile`。
+3. 如果两者都没有，才使用默认 demo 数据。
+
+点击“生成计划”后，应用会立即保存当前用户建档资料和生成后的训练计划。首次启动时，如果浏览器里已有旧版 `localStorage.fitplan-records`，应用会自动迁移到 IndexedDB。迁移完成后不会删除原来的 `localStorage` 数据。
 
 ### 导出备份
 
@@ -94,6 +100,7 @@ PWA 会缓存：
 备份文件包含：
 
 - 用户基础设置
+- 生成后的训练计划
 - 训练计划自定义数据
 - 训练记录
 

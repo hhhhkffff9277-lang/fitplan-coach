@@ -17,12 +17,20 @@
   box-sizing: border-box;
 }
 
+html {
+  min-height: 100%;
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--canvas);
   color: var(--ink);
   font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  overflow-x: hidden;
+  padding-top: env(safe-area-inset-top);
 }
 
 button,
@@ -40,6 +48,7 @@ button {
   display: grid;
   grid-template-columns: 290px minmax(0, 1fr);
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .sidebar {
@@ -768,7 +777,7 @@ textarea {
 }
 
 .segmented button {
-  min-height: 38px;
+  min-height: 44px;
   padding: 0 16px;
   background: transparent;
 }
@@ -978,6 +987,51 @@ textarea {
   flex-wrap: wrap;
 }
 
+.data-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 14px 0 10px;
+}
+
+.import-button {
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.import-button input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.data-status {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: #eef5ff;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.data-status[data-type="success"] {
+  background: #e6f4ea;
+  color: #137333;
+}
+
+.data-status[data-type="warning"] {
+  background: #fef7e0;
+  color: #6f5200;
+}
+
+.data-status[data-type="error"] {
+  background: #fce8e6;
+  color: #9d251c;
+}
+
 .history-card {
   display: grid;
   gap: 8px;
@@ -1004,7 +1058,7 @@ textarea {
 }
 
 .small-button {
-  min-height: 38px;
+  min-height: 44px;
   padding: 0 12px;
   border: 0;
   border-radius: var(--radius);
@@ -1102,6 +1156,13 @@ textarea {
   line-height: 1.55;
 }
 
+@supports (-webkit-touch-callout: none) {
+  body,
+  .app-shell {
+    min-height: -webkit-fill-available;
+  }
+}
+
 @media (orientation: portrait) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -1124,6 +1185,232 @@ textarea {
 
   .workspace {
     padding: 18px;
+  }
+}
+
+@media (max-width: 900px) {
+  body {
+    width: 100%;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .app-shell {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .sidebar {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 20;
+    display: block;
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+    border-right: 0;
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 -10px 30px rgba(32, 33, 36, 0.08);
+  }
+
+  .brand {
+    display: none;
+  }
+
+  .nav {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+    overflow: visible;
+  }
+
+  .nav-item {
+    justify-content: center;
+    gap: 3px;
+    min-width: 0;
+    min-height: 54px;
+    padding: 6px 4px;
+    border-radius: 12px;
+    flex-direction: column;
+    text-align: center;
+    font-size: 0.82rem;
+    line-height: 1.15;
+    white-space: normal;
+  }
+
+  .icon {
+    width: 24px;
+    height: 22px;
+    font-size: 1.12rem;
+  }
+
+  .workspace {
+    width: 100%;
+    min-width: 0;
+    padding: calc(16px + env(safe-area-inset-top)) 14px calc(96px + env(safe-area-inset-bottom));
+  }
+
+  .topbar {
+    display: grid;
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+
+  h1 {
+    font-size: 2rem;
+  }
+
+  .status-strip {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .status-strip span {
+    min-width: 0;
+    padding: 9px 10px;
+  }
+
+  .profile-grid,
+  .schedule-layout,
+  .records-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .detail-panel {
+    position: static;
+    order: 2;
+  }
+
+  .panel {
+    min-width: 0;
+    padding: 16px;
+    box-shadow: 0 10px 28px rgba(32, 33, 36, 0.08);
+  }
+
+  .section-heading {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .section-heading .primary-button,
+  .record-actions .primary-button,
+  .record-actions .ghost-button {
+    width: 100%;
+  }
+
+  .form-grid,
+  .goal-detail-panel,
+  .photo-uploader,
+  .exercise-list,
+  .exercise-library,
+  .library-categories,
+  .nutrition-grid,
+  .week-grid.is-month {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .goal-group {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .goal-group label,
+  .day-options label,
+  .category-card,
+  .history-card,
+  .exercise-card,
+  .workout-row,
+  .month-card,
+  .month-day {
+    min-height: 44px;
+  }
+
+  .day-options {
+    position: static;
+    margin-top: 8px;
+    box-shadow: none;
+  }
+
+  .week-grid {
+    max-height: 58dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-right: 2px;
+  }
+
+  .workout-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tag-list {
+    align-items: flex-start;
+  }
+
+  .exercise-photo {
+    aspect-ratio: 16 / 11;
+  }
+
+  .exercise-photo img,
+  .posture-slot img {
+    max-width: 100%;
+    object-fit: contain;
+  }
+
+  .posture-slot img {
+    height: auto;
+    max-height: 240px;
+    background: white;
+  }
+
+  .library-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .search-input {
+    max-width: none;
+  }
+
+  .record-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .data-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .record-item,
+  .set-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .record-item strong:first-child,
+  .set-row .exercise-name-input {
+    grid-column: 1 / -1;
+  }
+
+  .set-row select,
+  .set-row .weight-detail-input,
+  .set-row .delete-set-row {
+    grid-column: 1 / -1;
+  }
+
+  .calorie-estimate div {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .heart-zone-row {
+    grid-template-columns: 78px minmax(0, 1fr) 72px;
+    gap: 8px;
+    font-size: 0.92rem;
   }
 }
 
@@ -1200,5 +1487,27 @@ textarea {
   .record-item,
   .set-row {
     grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .section-heading {
+    align-items: stretch;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: auto;
+    overflow: visible;
+  }
+
+  .nav {
+    grid-auto-flow: initial;
+    grid-auto-columns: initial;
+  }
+
+  .nav-item {
+    width: auto;
+    min-width: 0;
   }
 }

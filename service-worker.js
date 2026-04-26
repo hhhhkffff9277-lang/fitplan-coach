@@ -1,4 +1,4 @@
-const CACHE_VERSION = "fitplan-pwa-v1";
+const CACHE_VERSION = "fitplan-pwa-v4";
 const CORE_ASSETS = [
   "./",
   "./index.html",

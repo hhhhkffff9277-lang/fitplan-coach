@@ -168,7 +168,10 @@ const state = {
   planMode: "week",
   libraryCategory: null,
   posturePhotos: {},
-  records: JSON.parse(localStorage.getItem("fitplan-records") || "[]")
+  records: readLocalRecords(),
+  db: null,
+  dbReady: false,
+  planCustom: {}
 };
 
 const libraryCategories = [
@@ -377,10 +380,18 @@ const cooldowns = [
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 
-function init() {
+const DB_NAME = "fitplan-coach-db";
+const DB_VERSION = 1;
+const STORE_RECORDS = "records";
+const STORE_SETTINGS = "settings";
+const STORE_PLAN_CUSTOM = "planCustom";
+
+async function init() {
+  await initDataLayer();
   bindNavigation();
   bindForm();
   bindPhotoPreview();
+  applyProfileToForm();
   renderMetrics();
   renderPlan();
   renderLibrary();
@@ -389,6 +400,137 @@ function init() {
   renderNutritionSleep();
   renderAvailableSummary();
   updateStatus();
+}
+
+function readLocalRecords() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem("fitplan-records") || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeLocalRecords(records) {
+  localStorage.setItem("fitplan-records", JSON.stringify(records));
+}
+
+function readLocalProfile() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem("fitplan-profile") || "null");
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeLocalProfile(profile) {
+  localStorage.setItem("fitplan-profile", JSON.stringify(profile));
+}
+
+function openFitPlanDb() {
+  if (!("indexedDB" in window)) return Promise.resolve(null);
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(STORE_RECORDS)) db.createObjectStore(STORE_RECORDS, { keyPath: "id" });
+      if (!db.objectStoreNames.contains(STORE_SETTINGS)) db.createObjectStore(STORE_SETTINGS, { keyPath: "key" });
+      if (!db.objectStoreNames.contains(STORE_PLAN_CUSTOM)) db.createObjectStore(STORE_PLAN_CUSTOM, { keyPath: "key" });
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function idbStore(storeName, mode = "readonly") {
+  if (!state.db) return null;
+  return state.db.transaction(storeName, mode).objectStore(storeName);
+}
+
+function idbRequest(request) {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function idbGetAllRecords() {
+  const store = idbStore(STORE_RECORDS);
+  if (!store) return [];
+  const records = await idbRequest(store.getAll());
+  return records.sort((a, b) => (b.savedAt || b.id || "").localeCompare(a.savedAt || a.id || ""));
+}
+
+async function idbReplaceRecords(records) {
+  const store = idbStore(STORE_RECORDS, "readwrite");
+  if (!store) return;
+  await idbRequest(store.clear());
+  await Promise.all(records.map((record) => idbRequest(store.put(record))));
+}
+
+async function idbPutRecord(record) {
+  const store = idbStore(STORE_RECORDS, "readwrite");
+  if (!store) return;
+  await idbRequest(store.put(record));
+}
+
+async function idbGetValue(storeName, key) {
+  const store = idbStore(storeName);
+  if (!store) return null;
+  const result = await idbRequest(store.get(key));
+  return result?.value ?? null;
+}
+
+async function idbSetValue(storeName, key, value) {
+  const store = idbStore(storeName, "readwrite");
+  if (!store) return;
+  await idbRequest(store.put({ key, value, updatedAt: new Date().toISOString() }));
+}
+
+async function initDataLayer() {
+  try {
+    state.db = await openFitPlanDb();
+    state.dbReady = Boolean(state.db);
+    if (!state.dbReady) {
+      const localProfile = readLocalProfile();
+      if (localProfile) state.profile = normalizeProfile(localProfile);
+      setDataStatus("当前浏览器不支持 IndexedDB，已使用 localStorage 兼容模式。", "warning");
+      return;
+    }
+
+    const [savedRecords, savedProfile, savedPlanCustom] = await Promise.all([
+      idbGetAllRecords(),
+      idbGetValue(STORE_SETTINGS, "profile"),
+      idbGetValue(STORE_PLAN_CUSTOM, "current")
+    ]);
+    const localRecords = readLocalRecords();
+    if (savedRecords.length) {
+      state.records = savedRecords;
+    } else if (localRecords.length) {
+      state.records = localRecords.map(normalizeRecord);
+      await idbReplaceRecords(state.records);
+      setDataStatus(`已从 localStorage 迁移 ${state.records.length} 条训练记录到 IndexedDB，原 localStorage 已保留。`, "success");
+    }
+    if (state.records.length) writeLocalRecords(state.records);
+    const localProfile = readLocalProfile();
+    if (savedProfile) {
+      state.profile = normalizeProfile(savedProfile);
+      writeLocalProfile(buildProfileSnapshot());
+    } else if (localProfile) {
+      state.profile = normalizeProfile(localProfile);
+      await idbSetValue(STORE_SETTINGS, "profile", buildProfileSnapshot());
+      setDataStatus("已从 localStorage.fitplan-profile 恢复用户档案，并迁移到 IndexedDB。", "success");
+    }
+    if (savedPlanCustom) applyPlanCustom(savedPlanCustom);
+    if (savedProfile || localProfile || savedPlanCustom) await persistPlanCustom();
+  } catch (error) {
+    console.warn("IndexedDB 初始化失败：", error);
+    state.dbReady = false;
+    const localProfile = readLocalProfile();
+    if (localProfile) state.profile = normalizeProfile(localProfile);
+    setDataStatus("IndexedDB 初始化失败，当前继续使用 localStorage 兼容备份。", "warning");
+  }
 }
 
 function bindNavigation() {
@@ -414,9 +556,12 @@ function showView(view) {
 }
 
 function bindForm() {
-  $("#intakeForm").addEventListener("submit", (event) => {
+  $("#intakeForm").addEventListener("submit", async (event) => {
     event.preventDefault();
     syncProfileFromForm(event.currentTarget);
+    await persistUserSettings();
+    await persistPlanCustom();
+    setDataStatus("用户档案和生成后的训练计划已保存，下次打开会自动恢复。", "success");
     showView("schedule");
     $$(".nav-item").forEach((item) => item.classList.toggle("is-active", item.dataset.view === "schedule"));
   });
@@ -432,6 +577,8 @@ function bindForm() {
   $("#exerciseSearch").addEventListener("input", renderLibrary);
   $("#saveRecord").addEventListener("click", saveRecord);
   $("#addRecordExercise").addEventListener("click", addRecordExercise);
+  $("#exportBackup").addEventListener("click", exportBackup);
+  $("#importBackupInput").addEventListener("change", importBackup);
   $("#recordEditor").addEventListener("input", () => {
     renderCalorieEstimate();
     renderNutritionSleep();
@@ -444,6 +591,7 @@ function bindForm() {
     button.addEventListener("click", () => {
       state.planMode = button.dataset.mode;
       $$(".segmented [data-mode]").forEach((item) => item.classList.toggle("is-selected", item === button));
+      persistPlanCustom();
       renderPlan();
     });
   });
@@ -465,6 +613,108 @@ function syncProfileFromForm(form) {
   renderPlan();
   renderRecordEditor();
   renderNutritionSleep();
+  persistUserSettings();
+  persistPlanCustom();
+}
+
+function normalizeProfile(profile = {}) {
+  const source = profile.profile && typeof profile.profile === "object" ? { ...profile.profile, ...profile } : profile;
+  return {
+    ...defaultProfile,
+    ...source,
+    goal: Array.isArray(source.goal) ? source.goal : [source.goal || defaultProfile.goal[0]].filter(Boolean),
+    available: Array.isArray(source.available)
+      ? source.available
+      : String(source.available || defaultProfile.available).split(/[、,，\s]+/).filter(Boolean)
+  };
+}
+
+function applyProfileToForm() {
+  const form = $("#intakeForm");
+  if (!form) return;
+  const profile = normalizeProfile(state.profile);
+  Object.entries(profile).forEach(([key, value]) => {
+    if (key === "goal" || key === "available") return;
+    const field = form.elements[key];
+    if (field) field.value = value;
+  });
+  $$("input[name='goal']").forEach((input) => {
+    input.checked = profile.goal.includes(input.value);
+  });
+  $$("input[name='available']").forEach((input) => {
+    input.checked = profile.available.includes(input.value);
+  });
+  state.profile = profile;
+  renderAvailableSummary();
+}
+
+function normalizeRecord(record = {}) {
+  return {
+    id: record.id || (window.crypto?.randomUUID ? window.crypto.randomUUID() : String(Date.now())),
+    date: record.date || new Date().toLocaleDateString("zh-CN"),
+    workout: record.workout || "未命名训练",
+    duration: Number(record.duration) || Number(state.profile.duration) || 0,
+    calories: Number(record.calories) || 0,
+    sets: Array.isArray(record.sets) ? record.sets : [],
+    savedAt: record.savedAt || new Date().toISOString()
+  };
+}
+
+function applyPlanCustom(planCustom = {}) {
+  state.planCustom = { ...planCustom };
+  if (typeof planCustom.selectedWorkout === "number") state.selectedWorkout = planCustom.selectedWorkout;
+  if (planCustom.planMode) state.planMode = planCustom.planMode;
+}
+
+async function persistUserSettings() {
+  const snapshot = buildProfileSnapshot();
+  writeLocalProfile(snapshot);
+  if (!state.dbReady) return;
+  try {
+    await idbSetValue(STORE_SETTINGS, "profile", snapshot);
+  } catch (error) {
+    console.warn("用户设置保存失败：", error);
+    setDataStatus("用户设置保存到 IndexedDB 失败，但已保留 localStorage.fitplan-profile 兼容备份。", "warning");
+  }
+}
+
+function buildProfileSnapshot() {
+  const profile = normalizeProfile(state.profile);
+  return {
+    ...profile,
+    generatedPlan: getAdjustedPlan().map((workout) => ({
+      day: workout.day,
+      title: workout.title,
+      focus: workout.focus,
+      duration: workout.duration,
+      intensity: workout.intensity,
+      exercises: [...workout.exercises]
+    })),
+    savedAt: new Date().toISOString()
+  };
+}
+
+async function persistPlanCustom() {
+  state.planCustom = {
+    selectedWorkout: state.selectedWorkout,
+    planMode: state.planMode,
+    available: state.profile.available,
+    generatedPlan: getAdjustedPlan(),
+    updatedAt: new Date().toISOString()
+  };
+  if (!state.dbReady) return;
+  try {
+    await idbSetValue(STORE_PLAN_CUSTOM, "current", state.planCustom);
+  } catch (error) {
+    console.warn("训练计划自定义数据保存失败：", error);
+  }
+}
+
+function setDataStatus(message, type = "info") {
+  const target = $("#dataStatus");
+  if (!target) return;
+  target.textContent = message;
+  target.dataset.type = type;
 }
 
 function bindPhotoPreview() {
@@ -775,6 +1025,7 @@ function renderPlan() {
   $$(".workout-row").forEach((row) => {
     row.addEventListener("click", () => {
       state.selectedWorkout = Number(row.dataset.index);
+      persistPlanCustom();
       renderPlan();
       renderRecordEditor();
     });
@@ -1184,11 +1435,11 @@ function getWorkoutDensity(sets) {
   return "偏低或待补充";
 }
 
-function saveRecord() {
+async function saveRecord() {
   const workout = getAdjustedPlan()[state.selectedWorkout];
   const sets = getEditorSets();
   const calories = estimateWorkoutCalories(sets, workout);
-  state.records.unshift({
+  const record = normalizeRecord({
     id: window.crypto?.randomUUID ? window.crypto.randomUUID() : String(Date.now()),
     date: new Date().toLocaleDateString("zh-CN"),
     workout: workout.title,
@@ -1196,8 +1447,16 @@ function saveRecord() {
     calories,
     sets
   });
+  state.records.unshift(record);
   state.records = state.records.slice(0, 8);
-  localStorage.setItem("fitplan-records", JSON.stringify(state.records));
+  writeLocalRecords(state.records);
+  try {
+    if (state.dbReady) await idbPutRecord(record);
+    setDataStatus(state.dbReady ? "训练记录已保存到 IndexedDB，并同步保留 localStorage 备份。" : "训练记录已保存到 localStorage 兼容备份。", "success");
+  } catch (error) {
+    console.warn("IndexedDB 保存训练记录失败：", error);
+    setDataStatus("IndexedDB 保存失败，但 localStorage 兼容备份已保留。", "warning");
+  }
   renderRecords();
   renderNutritionSleep();
 }
@@ -1236,6 +1495,95 @@ async function shareRecord(index) {
   } catch {
     status.textContent = "分享已取消，训练记录仍保留在本地。";
   }
+}
+
+function buildBackupPayload() {
+  return {
+    app: "FitPlan Coach",
+    schemaVersion: 1,
+    exportedAt: new Date().toISOString(),
+    profile: buildProfileSnapshot(),
+    planCustom: {
+      ...state.planCustom,
+      selectedWorkout: state.selectedWorkout,
+      planMode: state.planMode,
+      generatedPlan: getAdjustedPlan()
+    },
+    records: state.records.map(normalizeRecord)
+  };
+}
+
+function exportBackup() {
+  try {
+    const payload = buildBackupPayload();
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const date = new Date().toISOString().slice(0, 10);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `fitplan-backup-${date}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setDataStatus(`已导出 ${payload.records.length} 条训练记录和当前用户设置。`, "success");
+  } catch (error) {
+    console.warn("导出备份失败：", error);
+    setDataStatus("导出备份失败，请稍后重试。", "error");
+  }
+}
+
+async function importBackup(event) {
+  const [file] = event.target.files;
+  event.target.value = "";
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const payload = JSON.parse(text);
+    const validation = validateBackupPayload(payload);
+    if (!validation.valid) {
+      setDataStatus(`导入失败：${validation.message}`, "error");
+      return;
+    }
+    const ok = window.confirm("导入备份会覆盖当前训练记录、用户设置和训练计划自定义数据。是否继续？");
+    if (!ok) {
+      setDataStatus("已取消导入，当前数据未改变。", "info");
+      return;
+    }
+    state.profile = normalizeProfile(payload.profile);
+    state.records = payload.records.map(normalizeRecord);
+    applyPlanCustom(payload.planCustom || {});
+    writeLocalRecords(state.records);
+    writeLocalProfile(buildProfileSnapshot());
+    if (state.dbReady) {
+      await Promise.all([
+        idbReplaceRecords(state.records),
+        idbSetValue(STORE_SETTINGS, "profile", buildProfileSnapshot()),
+        idbSetValue(STORE_PLAN_CUSTOM, "current", state.planCustom)
+      ]);
+    }
+    applyProfileToForm();
+    updateStatus();
+    renderMetrics();
+    renderPlan();
+    renderRecordEditor();
+    renderRecords();
+    renderNutritionSleep();
+    setDataStatus(`导入成功：已恢复 ${state.records.length} 条训练记录、用户设置和训练计划自定义数据。`, "success");
+  } catch (error) {
+    console.warn("导入备份失败：", error);
+    setDataStatus("导入失败：文件不是有效 JSON，或读取过程中发生错误。", "error");
+  }
+}
+
+function validateBackupPayload(payload) {
+  if (!payload || typeof payload !== "object") return { valid: false, message: "备份文件根节点必须是对象。" };
+  if (payload.app !== "FitPlan Coach") return { valid: false, message: "不是 FitPlan Coach 备份文件。" };
+  if (!Array.isArray(payload.records)) return { valid: false, message: "缺少 records 数组。" };
+  if (!payload.profile || typeof payload.profile !== "object") return { valid: false, message: "缺少 profile 用户设置。" };
+  const invalidRecord = payload.records.find((record) => !record || typeof record !== "object" || !Array.isArray(record.sets));
+  if (invalidRecord) return { valid: false, message: "训练记录格式不正确。" };
+  return { valid: true };
 }
 
 function renderNutritionSleep() {

@@ -299,6 +299,14 @@
             </section>
             <section class="panel">
               <h2>历史记录</h2>
+              <div class="data-actions">
+                <button class="small-button" id="exportBackup" type="button">导出备份</button>
+                <label class="small-button import-button">
+                  导入备份
+                  <input id="importBackupInput" type="file" accept="application/json,.json" />
+                </label>
+              </div>
+              <p class="data-status" id="dataStatus" aria-live="polite">数据将优先保存到 IndexedDB，并保留 localStorage 兼容备份。</p>
               <div class="record-list" id="recordList"></div>
             </section>
             <section class="panel nutrition-panel">
