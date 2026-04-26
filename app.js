@@ -156,7 +156,6 @@ const defaultProfile = {
   targetWeeks: 8,
   targetMetric: "体重、围度、训练完成度",
   available: "周一、周三、周五、周日",
-  equipment: "健身房完整器械",
   napHabit: "无午休习惯",
   conditions: "无基础病，偶发久坐腰背酸胀。",
   injuries: "右膝曾轻微扭伤，避免高冲击跳跃。"
@@ -627,7 +626,7 @@ function syncProfileFromForm(form) {
 
 function normalizeProfile(profile = {}) {
   const source = profile.profile && typeof profile.profile === "object" ? { ...profile.profile, ...profile } : profile;
-  return {
+  const normalized = {
     ...defaultProfile,
     ...source,
     goal: Array.isArray(source.goal) ? source.goal : [source.goal || defaultProfile.goal[0]].filter(Boolean),
@@ -635,6 +634,10 @@ function normalizeProfile(profile = {}) {
       ? source.available
       : String(source.available || defaultProfile.available).split(/[、,，\s]+/).filter(Boolean)
   };
+  delete normalized.equipment;
+  delete normalized.trainingEnvironment;
+  delete normalized.availableEquipment;
+  return normalized;
 }
 
 function applyProfileToForm() {
@@ -1092,7 +1095,7 @@ function renderExerciseCard(exercise) {
     <article class="exercise-card">
       ${renderExercisePhoto(exercise)}
       <h3>${exercise.name}</h3>
-      <p>${exercise.target} · ${exercise.equipment}</p>
+      <p>${exercise.target}</p>
       <div class="tag-list">
         <span class="tag">${exercise.prescription}</span>
         <span class="tag">休息 ${exercise.rest}</span>
@@ -1170,7 +1173,7 @@ function renderLibrary() {
 
   const source = state.libraryCategory ? getExercisesByCategory(state.libraryCategory) : exerciseCatalog;
   const filtered = source.filter((exercise) => {
-    const text = `${exercise.name} ${exercise.target} ${exercise.equipment} ${(exercise.muscles || []).join(" ")}`.toLowerCase();
+    const text = `${exercise.name} ${exercise.target} ${(exercise.muscles || []).join(" ")}`.toLowerCase();
     return text.includes(keyword);
   });
   const category = libraryCategories.find((item) => item.id === state.libraryCategory);
@@ -1178,7 +1181,7 @@ function renderLibrary() {
     <div class="library-toolbar">
       <div>
         <h3>${category ? category.name : "搜索结果"}</h3>
-        <p>${category ? getCategoryHint(category.id) : "按关键词匹配动作名称、器械和肌群"}</p>
+        <p>${category ? getCategoryHint(category.id) : "按关键词匹配动作名称和目标肌群"}</p>
       </div>
       ${state.libraryCategory ? '<button class="small-button" id="backToCategories" type="button">返回分类</button>' : ""}
     </div>
