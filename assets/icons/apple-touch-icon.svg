@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" role="img" aria-label="FitPlan Coach">
+  <rect width="180" height="180" rx="40" fill="#f8fafc"/>
+  <rect x="24" y="24" width="52" height="52" rx="14" fill="#4285f4"/>
+  <rect x="104" y="24" width="52" height="52" rx="14" fill="#ea4335"/>
+  <rect x="24" y="104" width="52" height="52" rx="14" fill="#fbbc05"/>
+  <rect x="104" y="104" width="52" height="52" rx="14" fill="#34a853"/>
+  <circle cx="90" cy="90" r="34" fill="#ffffff"/>
+  <path d="M75 91l11 11 22-30" fill="none" stroke="#202124" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
