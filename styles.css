@@ -994,6 +994,19 @@ textarea {
   margin: 14px 0 10px;
 }
 
+.data-management-panel {
+  grid-column: 1 / -1;
+}
+
+.data-version {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #eef5ff;
+  color: var(--blue);
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
 .import-button {
   display: inline-grid;
   place-items: center;
@@ -1030,6 +1043,11 @@ textarea {
 .data-status[data-type="error"] {
   background: #fce8e6;
   color: #9d251c;
+}
+
+.danger-button {
+  background: #fce8e6;
+  color: #b3261e;
 }
 
 .history-card {

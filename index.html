@@ -299,15 +299,22 @@
             </section>
             <section class="panel">
               <h2>历史记录</h2>
+              <div class="record-list" id="recordList"></div>
+            </section>
+            <section class="panel data-management-panel">
+              <div class="section-heading">
+                <h2>数据管理</h2>
+                <span class="data-version">数据版本 2</span>
+              </div>
               <div class="data-actions">
-                <button class="small-button" id="exportBackup" type="button">导出备份</button>
+                <button class="small-button" id="exportBackup" type="button">导出完整备份</button>
                 <label class="small-button import-button">
-                  导入备份
+                  导入完整备份
                   <input id="importBackupInput" type="file" accept="application/json,.json" />
                 </label>
+                <button class="small-button danger-button" id="clearLocalData" type="button">清空本地数据</button>
               </div>
               <p class="data-status" id="dataStatus" aria-live="polite">数据将优先保存到 IndexedDB，并保留 localStorage 兼容备份。</p>
-              <div class="record-list" id="recordList"></div>
             </section>
             <section class="panel nutrition-panel">
               <h2>营养膳食及睡眠</h2>
